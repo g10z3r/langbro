@@ -4,6 +4,8 @@ services:
     build:
       dockerfile: ci/docker/backend.Dockerfile
       context: ../../
+    ports:
+      - "8080:8080"
     container_name: langbro_backend
     restart: unless-stopped
 
