@@ -1,0 +1,16 @@
+backend/target
+
+ci/docker/*
+ci/scripts/*
+
+.git
+.github
+.vscode
+.gitignore
+.env.example
+.env.test
+docker-compose.yml
+/*.sql
+Makefile
+LICENSE
+README.md

@@ -1,0 +1,6 @@
+.vscode
+.env
+/*.sql
+
+backend/target
+backend/lib/target
