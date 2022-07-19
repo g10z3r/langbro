@@ -3,11 +3,15 @@ SHELL = /bin/bash
 CACHE = yes
 # Путь к файлам Docker
 DOCKER_DIR = ci/docker
+# Путь к CI скриптам
+CI_SCRIPTS = ci/scripts
 
 # Флаги сборки backend'a
 GENERAL_BUILD_ARGS = --release
 BACKEND_BUILD_ARGS = $(GENERAL_BUILD_ARGS) -p langbro
 
+
+include .env
 
 # Функция для установки флага о запрете кеширования
 define is_need_to_use_cache
@@ -22,6 +26,8 @@ define base_docker_cmd
 endef
 
 .PHONY:
+	env \
+
 	down-backend \
 	build-backend \
 	run-backend \
@@ -29,8 +35,26 @@ endef
 	config-backend \
 
 
+# Обновление файлов окружение в разных папках
+env:
+# Проверяю наличие файла
+	@if [ ! -e .env ]; then\
+		echo .env file was not found && \
+		exit 1 ;\
+	fi
+
+# Проверяю права файла
+	@if [  ! $(shell stat -c %A $(CI_SCRIPTS)/env_init.sh) = -rwxrwxr-x ]; then\
+		sudo chmod +x $(CI_SCRIPTS)/env_init.sh ;\
+	fi
+	
+# Запускаю создание переменных окружения
+	$(shell $(CI_SCRIPTS)/env_init.sh)
+
+
+
 # Предварительный просмотр docker-compose файла
-config-backend:
+config-backend: env
 	$(shell $(call base_docker_cmd, $(DOCKER_DIR),$(DOCKER_ENV))) config
 
 
@@ -42,7 +66,7 @@ down-backend:
 
 
 # Компиляция backend'a
-build-backend:
+build-backend: env
 	$(shell $(call base_docker_cmd, $(DOCKER_DIR),$(DOCKER_ENV))) build \
 		--build-arg BUILD_ARGS="$(BACKEND_BUILD_ARGS)" \
 		$(shell $(call is_need_to_use_cache, $(CACHE)))
@@ -53,6 +77,7 @@ run-backend: build-backend
 	$(shell $(call base_docker_cmd, $(DOCKER_DIR),$(DOCKER_ENV))) up
 
 
+# Подсчет кол-ва строк в проекте 
 count-backend:
 	find backend/src backend/tests -name langbro -prune -o -type f -name '*.rs' | xargs wc -l
 
