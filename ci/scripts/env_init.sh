@@ -1,0 +1,32 @@
+#!/bin/bash
+
+source .env
+
+function docker {
+cat << EOF > ci/docker/.env
+MONGO_INITDB_ROOT_USERNAME=$MONGO_INITDB_ROOT_USERNAME
+MONGO_INITDB_ROOT_PASSWORD=$MONGO_INITDB_ROOT_PASSWORD
+MONGO_INITDB_DATABASE=$MONGO_INITDB_DATABASE
+MONGO_USER=$MONGO_USER
+MONGO_USER_PASSWORD=$MONGO_USER_PASSWORD
+MONGO_USER_ROLE=$MONGO_USER_ROLE
+EOF
+}
+
+function backend {
+cat << EOF > backend/.env
+SERVER_PORT=$SERVER_PORT
+SERVER_HOST=$SERVER_HOST
+
+MONGO_DB_URL=mongodb://$MONGO_USER:$MONGO_USER_PASSWORD@$MONGO_HOST:$MONGO_PORT/$MONGO_INITDB_DATABASE?w=majority
+MONGO_DATABASE_NAME=$MONGO_INITDB_DATABASE
+EOF
+}
+
+docker
+backend
+
+# Автоматическое обновление .env.example
+if [ $CURRENT_ENV = "local" ]; then\
+    cat .env > .env.example ;\
+fi
