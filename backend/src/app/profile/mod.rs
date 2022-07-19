@@ -1,6 +1,5 @@
 use juniper::{GraphQLObject, DefaultScalarValue};
 use mongodb::bson::DateTime as MongoDateTime;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 use juniper::GraphQLInputObject;
@@ -19,7 +18,7 @@ pub struct Profile {
 //     pub updated_at: MongoDateTime,
 }
 
-#[derive(Validate, Deserialize, GraphQLInputObject)]
+#[derive(Validate, Serialize, Deserialize, GraphQLInputObject)]
 pub struct NewProfile {
     pub username: String,
     pub password: String,

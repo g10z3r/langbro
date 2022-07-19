@@ -1,39 +1,38 @@
 pub mod schema;
 
-use actix_web::{
-    web::{self, Data},
-    HttpResponse,
-};
+use actix_web::{get, route, web, Error, HttpResponse, Responder};
+use actix_web_lab::respond::Html;
 use juniper::http::{graphiql::graphiql_source, GraphQLRequest};
 use std::sync::Arc;
 
+use crate::db;
+
 use self::schema::{Context, Schema};
 
-pub fn http_config(cfg: &mut web::ServiceConfig) {
-    let schema = Arc::new(schema::create_schema());
+#[route("/graphql", method = "GET", method = "POST")]
+pub async fn graphql(
+    schema: web::Data<Schema>,
+    data: web::Json<GraphQLRequest>,
+) -> Result<HttpResponse, Error> {
+    let mdb = db::connect().unwrap();
 
-    // cfg.data(schema.clone()).service(
-    //     web::scope("/api").service(
-    //         web::scope("/v1")
-    //             .route("/data", web::post().to(graphql))
-    //             .route("/graphiql", web::get().to(graphiql)),
-    //     ),
-    // );
+    let ctx = Context {
+        mongodb: Arc::new(mdb),
+    };
+    
+    let res = data.execute(&schema, &ctx).await;
+
+    Ok(HttpResponse::Ok().json(res))
 }
 
-async fn graphql(data: web::Json<GraphQLRequest>, schema: web::Data<Schema>) -> HttpResponse {
-    let context = Context {};
-    let res = data.execute(&schema, &context).await;
-
-    HttpResponse::Ok().json(res)
+#[get("/graphiql")]
+async fn graphql_playground() -> impl Responder {
+    Html(graphiql_source("/graphql", None))
 }
 
-async fn graphiql() -> HttpResponse {
-    // Get the HTML content
-    let html = graphiql_source("http://localhost:8080/api/v1/data", None);
-
-    // Render the HTML content
-    HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+pub fn register(config: &mut web::ServiceConfig) {
+    config
+        .app_data(web::Data::new(schema::create_schema()))
+        .service(graphql)
+        .service(graphql_playground);
 }
