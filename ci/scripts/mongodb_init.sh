@@ -1,9 +1,5 @@
 #!/bin/bash
 
-echo "+++++++++++++++++++++++++++++++++"
-echo $MONGO_USER
-echo "+++++++++++++++++++++++++++++++++"
-
 # Создание пользователя для БД
 mongo -- "$MONGO_INITDB_DATABASE" <<EOF
     db.createUser({
