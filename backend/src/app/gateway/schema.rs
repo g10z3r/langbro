@@ -1,39 +1,20 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
-use juniper::{EmptySubscription, FieldResult, RootNode};
-use mongodb::{
-    bson,
-    bson::{doc, Document},
-    options::ClientOptions,
-    results::{DeleteResult, InsertOneResult},
-    sync::Client,
-    sync::Collection,
-};
+use juniper::{graphql_value, EmptySubscription, FieldError, FieldResult, RootNode};
+use mongodb::bson;
 
-use crate::app::profile::{NewProfile, Profile};
+use crate::app::account::{Account, NewAccount};
 
-#[derive(Clone)]
 pub struct Context {
-    pub mongodb: Arc<mongodb::sync::Client>,
+    pub mongodb: Arc<mongodb::sync::Database>,
 }
-
-impl juniper::Context for Context {}
 
 pub struct Query;
 
 #[juniper::graphql_object(context = Context)]
 impl Query {
-    pub async fn profiles() -> Vec<Profile> {
-        vec![
-            Profile {
-                id: "3r54fwrty".to_string(),
-                username: "test1".to_string(),
-            },
-            Profile {
-                id: "3r54fwrty".to_string(),
-                username: "test2".to_string(),
-            },
-        ]
+    pub async fn accounts() -> Vec<Account> {
+        todo!()
     }
 }
 
@@ -41,16 +22,21 @@ pub struct Mutation;
 
 #[juniper::graphql_object(context = Context)]
 impl Mutation {
-    pub async fn new_profile(input: NewProfile, context: &Context) -> FieldResult<Profile> {
-        todo!()
-        // let doc = bson::to_document(&input).unwrap();
+    pub async fn create_account(input: NewAccount, context: &Context) -> FieldResult<Account> {
+        let mut account = Account::new(Rc::new(input))?;
+        let doc = bson::to_document(account.password_hashing()?)?;
+        let collection = context.mongodb.collection("accounts");
 
-        // Ok(context
-        //     .mongodb
-        //     .database(dotenv!("MONGO_DATABASE_NAME"))
-        //     .collection("profiles")
-        //     .insert_one(doc, None)
-        //     .unwrap())
+        match collection.insert_one(doc, None) {
+            Ok(_) => Ok(account),
+            Err(err) => {
+                let details = err.to_string();
+                Err(FieldError::new(
+                    "Failed to create new account",
+                    graphql_value!({ "details": details }),
+                ))
+            }
+        }
     }
 }
 

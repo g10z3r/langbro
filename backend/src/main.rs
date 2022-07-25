@@ -12,7 +12,7 @@ async fn main() -> std::io::Result<()> {
     let port = dotenv!("SERVER_PORT").parse::<u16>().unwrap();
     let host = dotenv!("SERVER_HOST");
 
-    HttpServer::new(|| App::new().configure(gateway::register))
+    HttpServer::new(|| App::new().configure(gateway::config))
         .bind((host, port))?
         .run()
         .await

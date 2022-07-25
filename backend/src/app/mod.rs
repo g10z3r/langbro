@@ -1,3 +1,3 @@
 pub mod gateway;
 pub mod messenger;
-pub mod profile;
+pub mod account;
