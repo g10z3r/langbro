@@ -20,8 +20,8 @@ EOF
 
 # Создание коллекций и установка индексов
 mongo --username $MONGO_USER --password $MONGO_USER_PASSWORD --authenticationDatabase $MONGO_INITDB_DATABASE $MONGO_INITDB_DATABASE <<EOF
-    db.createCollection("profiles");
-    db.profiles.createIndex(
+    db.createCollection("accounts");
+    db.accounts.createIndex(
         {
             "username": 1
         }, 
