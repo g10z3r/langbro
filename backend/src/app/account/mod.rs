@@ -17,11 +17,15 @@ use crate::err_internal;
 pub struct Account {
     #[serde(rename = "_id")]
     pub id: ObjectId,
-    pub username: String,
+    pub username: Option<String>,
+    pub first_name: String,
+    pub last_name: Option<String>,
+    pub sex: u8,
     pub hash: String,
-
+    pub description: Option<String>,
     pub native_language: Vec<Language>,
     pub study_language: Vec<CEFR>,
+    pub friends: Option<Vec<Account>>,
     pub created_at: MongoDateTime,
     pub updated_at: MongoDateTime,
 }
@@ -32,14 +36,16 @@ pub struct NewAccount {
         length(min = 4, max = 10, message = "Lenght is invalid"),
         custom(function = "validate_query", message = "Invalid format")
     )]
-    pub username: String,
-
+    pub username: Option<String>,
+    pub first_name: String,
+    pub last_name: Option<String>,
+    pub sex: i32,
     #[validate(
         length(min = 8, max = 20, message = "Lenght is invalid"),
         custom(function = "validate_query", message = "Invalid format")
     )]
     pub password: String,
-
+    pub description: Option<String>,
     pub native_language: Vec<String>,
     pub study_language: Vec<CefrInput>,
 }
@@ -48,11 +54,15 @@ impl Account {
     pub fn new(new_account: Rc<NewAccount>) -> Result<Account, AppError> {
         Ok(Self {
             id: ObjectId::new(),
-            username: new_account.username.to_string(),
+            username: new_account.username.clone(),
+            first_name: new_account.first_name.clone(),
+            last_name: new_account.last_name.clone(),
             hash: new_account.password.to_string(),
-
+            sex: new_account.sex as u8,
+            description: new_account.description.clone(),
             native_language: Self::parse_native_language(&new_account.native_language)?,
             study_language: Self::parse_study_language(&new_account.study_language),
+            friends: None,
             created_at: MongoDateTime::now(),
             updated_at: MongoDateTime::now(),
         })
@@ -107,8 +117,20 @@ impl Account {
         self.id.to_string()
     }
 
-    pub fn username(&self) -> String {
-        self.username.to_string()
+    pub fn username(&self) -> Option<String> {
+        self.username.clone()
+    }
+
+    pub fn first_name(&self) -> String {
+        self.first_name.clone()
+    }
+
+    pub fn last_name(&self) -> Option<String> {
+        self.last_name.clone()
+    }
+
+    pub fn sex(&self) -> i32 {
+        self.sex as i32
     }
 
     pub fn native_language(&self) -> Vec<Language> {
@@ -117,6 +139,14 @@ impl Account {
 
     pub fn study_language(&self) -> Vec<CEFR> {
         self.study_language.clone()
+    }
+
+    pub fn description(&self) -> Option<String> {
+        self.description.clone()
+    }
+
+    pub fn friends(&self) -> Option<Vec<Account>> {
+        self.friends.clone()
     }
 
     pub fn created_at(&self) -> String {
