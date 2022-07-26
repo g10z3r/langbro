@@ -10,24 +10,27 @@ use validator::Validate;
 
 use crate::core::error::AppError;
 use crate::core::language::{CefrInput, Language, CEFR};
+use crate::core::regex::RE_NAME;
 use crate::core::validation::validate_query;
 use crate::err_internal;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
     #[serde(rename = "_id")]
-    pub id: ObjectId,
-    pub username: Option<String>,
-    pub first_name: String,
-    pub last_name: Option<String>,
-    pub sex: u8,
-    pub hash: String,
-    pub description: Option<String>,
-    pub native_language: Vec<Language>,
-    pub study_language: Vec<CEFR>,
-    pub friends: Option<Vec<Account>>,
-    pub created_at: MongoDateTime,
-    pub updated_at: MongoDateTime,
+    id: ObjectId,
+    username: Option<String>,
+    email: String,
+    first_name: String,
+    last_name: Option<String>,
+    sex: u8,
+    age: u8,
+    hash: String,
+    description: Option<String>,
+    native_language: Vec<Language>,
+    study_language: Vec<CEFR>,
+    friends: Option<Vec<Account>>,
+    created_at: MongoDateTime,
+    updated_at: MongoDateTime,
 }
 
 #[derive(Clone, Validate, Serialize, Deserialize, GraphQLInputObject)]
@@ -36,18 +39,43 @@ pub struct NewAccount {
         length(min = 4, max = 10, message = "Lenght is invalid"),
         custom(function = "validate_query", message = "Invalid format")
     )]
-    pub username: Option<String>,
-    pub first_name: String,
-    pub last_name: Option<String>,
-    pub sex: i32,
+    username: Option<String>,
+
+    #[validate(email)]
+    email: String,
+
+    #[validate(
+        length(min = 2, max = 10, message = "Lenght is invalid"),
+        regex = "RE_NAME"
+    )]
+    first_name: String,
+
+    #[validate(
+        length(min = 2, max = 10, message = "Lenght is invalid"),
+        regex = "RE_NAME"
+    )]
+    last_name: Option<String>,
+
+    #[validate(range(min = 0, max = 1))]
+    sex: i32,
+
+    #[validate(range(min = 18, max = 99))]
+    age: i32,
+
     #[validate(
         length(min = 8, max = 20, message = "Lenght is invalid"),
         custom(function = "validate_query", message = "Invalid format")
     )]
-    pub password: String,
-    pub description: Option<String>,
-    pub native_language: Vec<String>,
-    pub study_language: Vec<CefrInput>,
+    password: String,
+
+    #[validate(length(min = 1, max = 288, message = "Lenght is invalid"))]
+    description: Option<String>,
+
+    #[validate(length(min = 1, max = 3, message = "Lenght is invalid"))]
+    native_language: Vec<String>,
+
+    #[validate(length(min = 1, max = 4, message = "Lenght is invalid"))]
+    study_language: Vec<CefrInput>,
 }
 
 impl Account {
@@ -55,10 +83,12 @@ impl Account {
         Ok(Self {
             id: ObjectId::new(),
             username: new_account.username.clone(),
+            email: new_account.email.clone(),
             first_name: new_account.first_name.clone(),
             last_name: new_account.last_name.clone(),
             hash: new_account.password.to_string(),
             sex: new_account.sex as u8,
+            age: new_account.age as u8,
             description: new_account.description.clone(),
             native_language: Self::parse_native_language(&new_account.native_language)?,
             study_language: Self::parse_study_language(&new_account.study_language),
@@ -121,6 +151,10 @@ impl Account {
         self.username.clone()
     }
 
+    pub fn email(&self) -> String {
+        self.email.clone()
+    }
+
     pub fn first_name(&self) -> String {
         self.first_name.clone()
     }
@@ -131,6 +165,10 @@ impl Account {
 
     pub fn sex(&self) -> i32 {
         self.sex as i32
+    }
+
+    pub fn age(&self) -> i32 {
+        self.age as i32
     }
 
     pub fn native_language(&self) -> Vec<Language> {
