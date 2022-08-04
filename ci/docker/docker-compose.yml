@@ -7,43 +7,26 @@ services:
     ports:
       - "8080:8080"
     container_name: langbro_backend
+    depends_on:
+      - langbro_neo4j
     restart: unless-stopped
 
-  langbro_mongodb:
-    image: mongo:5.0
-    ports:
-      - 27017:27017
+  langbro_neo4j:
+    image: neo4j:4.2.3-enterprise
+    container_name: "langbro_neo4j"
     volumes:
-      - mongodb_data:/data/db
-      - ../scripts/mongodb_init.sh:/docker-entrypoint-initdb.d/mongodb_init.sh
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "echo",
-          "'db.runCommand({serverStatus:1}).ok'",
-          "|",
-          "mongo admin",
-          "-u $MONGO_INITDB_ROOT_USERNAME",
-          "-p $MONGO_INITDB_ROOT_PASSWORD",
-          "--quiet | grep 1",
-        ]
-      interval: 1s
-      timeout: 10s
-      retries: 3
+      - $HOME/neo4j/data:/data
+      - $HOME/neo4j/logs:/logs
+      # - ./data.csv:/var/lib/neo4j/import/data.csv
+      - $HOME/neo4j/plugins:/plugins
+    ports:
+      - "7474:7474"
+      - "7687:7687"
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=$MONGO_INITDB_ROOT_USERNAME
-      - MONGO_INITDB_ROOT_PASSWORD=$MONGO_INITDB_ROOT_PASSWORD
-      - MONGO_INITDB_DATABASE=$MONGO_INITDB_DATABASE
-      - MONGO_USER=$MONGO_USER
-      - MONGO_USER_PASSWORD=$MONGO_USER_PASSWORD
-      - MONGO_USER_ROLE=$MONGO_USER_ROLE
-    container_name: langbro_mongodb
-    restart: unless-stopped
-
-volumes:
-  mongodb_data:
-    driver: local
+      - NEO4J_AUTH=$NEO4J_AUTH_USER/$NEO4J_AUTH_PASSWORD
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      # - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - dbms.security.procedures.unrestricted=apoc.*
 
 networks:
   default:
