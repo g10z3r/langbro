@@ -1,19 +1,27 @@
-use actix_web::{App, HttpServer};
+use actix_web::{web, App, HttpServer};
+use anyhow::Result;
 use dotenv::dotenv;
-use langbro::app::gateway;
+use langbro::app::api::graphql::build_schema_with_context;
+use langbro::configure_service;
 
-#[macro_use]
-extern crate dotenv_codegen;
+use langbro::app::db::neo4j;
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     dotenv().ok();
+    pretty_env_logger::init();
 
-    let port = dotenv!("SERVER_PORT").parse::<u16>().unwrap();
-    let host = dotenv!("SERVER_HOST");
+    let neo_db = neo4j::connect().await?;
+    let schema = web::Data::new(build_schema_with_context(neo_db));
 
-    HttpServer::new(|| App::new().configure(gateway::config))
-        .bind((host, port))?
-        .run()
-        .await
+    let server = HttpServer::new(move || {
+        App::new()
+            .configure(configure_service)
+            .app_data(schema.clone())
+    })
+    .bind("0.0.0.0:8080")?
+    .run();
+
+    server.await?;
+    Ok(())
 }

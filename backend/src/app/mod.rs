@@ -1,3 +1,3 @@
-pub mod gateway;
-pub mod messenger;
-pub mod account;
+pub mod core;
+pub mod api;
+pub mod db;
