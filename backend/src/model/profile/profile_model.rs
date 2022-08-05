@@ -100,62 +100,84 @@ impl Profile {
 
 #[Object]
 impl<'a> Profile {
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn id(&'a self) -> String {
         self.id.to_string()
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn email(&'a self) -> &str {
         &self.email
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::Admin)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))")]
     async fn permissions(&'a self) -> Permissions {
         self.permissions
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn username(&'a self) -> &str {
         &self.username
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn first_name(&'a self) -> &str {
         &self.first_name
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn last_name(&'a self) -> &Option<String> {
         &self.last_name
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn sex(&'a self) -> u8 {
         self.sex
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn age(&'a self) -> u8 {
         self.age
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn description(&'a self) -> &Option<String> {
         &self.description
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn native_languages(&'a self) -> &Vec<Language> {
         &self.native_languages
     }
-
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn created_at(&'a self) -> i64 {
         self.created_at
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn updated_at(&'a self) -> i64 {
         self.updated_at
     }
