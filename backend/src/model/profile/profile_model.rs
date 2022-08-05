@@ -8,7 +8,7 @@ use rand::Rng;
 use strum_macros::{Display, EnumString};
 use uuid::Uuid;
 
-use crate::app::api::security::auth::AuthGuard;
+use crate::{app::api::security::auth::AuthGuard, model::language::language_model::Language};
 
 use super::profile_mutation::ProfileRegistrationInput;
 
@@ -39,6 +39,7 @@ pub struct Profile {
     pub(super) sex: u8,
     pub(super) age: u8,
     pub(super) description: Option<String>,
+    pub(super) native_languages: Vec<Language>,
     pub(super) created_at: i64,
     pub(super) updated_at: i64,
 }
@@ -56,6 +57,7 @@ impl Profile {
             sex: profile_input.sex,
             age: profile_input.age,
             description: profile_input.description,
+            native_languages: Language::from_string_vec(profile_input.native_languages)?,
             created_at: Utc::now().timestamp(),
             updated_at: Utc::now().timestamp(),
         };
@@ -89,6 +91,7 @@ impl Profile {
             sex: node.get::<i64>("sex").expect("Faild to get node id") as u8,
             age: node.get::<i64>("age").expect("Faild to get node id") as u8,
             description: node.get::<String>("description"),
+            native_languages: Vec::new(),
             created_at: node.get::<i64>("created_at").expect("Faild to get node id"),
             updated_at: node.get::<i64>("updated_at").expect("Faild to get node id"),
         })
@@ -140,6 +143,11 @@ impl<'a> Profile {
     #[graphql(guard = "AuthGuard::new(Permissions::User)")]
     async fn description(&'a self) -> &Option<String> {
         &self.description
+    }
+
+    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    async fn native_languages(&'a self) -> &Vec<Language> {
+        &self.native_languages
     }
 
     #[graphql(guard = "AuthGuard::new(Permissions::User)")]

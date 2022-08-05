@@ -10,6 +10,7 @@ pub struct ProfileRegistrationInput {
     pub(super) sex: u8,
     pub(super) age: u8,
     pub(super) description: Option<String>,
+    pub(super) native_languages: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, InputObject)]

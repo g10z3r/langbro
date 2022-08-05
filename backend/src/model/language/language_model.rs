@@ -1,4 +1,6 @@
+use anyhow::Result;
 use async_graphql::Enum;
+use std::str::FromStr;
 use strum_macros::{Display, EnumString};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq, Enum, Display, EnumString)]
@@ -123,4 +125,16 @@ pub enum Language {
     Yoruba,
 
     Zulu,
+}
+
+impl Language {
+    pub fn from_string_vec(vec: Vec<String>) -> Result<Vec<Language>> {
+        let mut new_vec: Vec<Language> = Vec::new();
+
+        for i in vec.iter() {
+            new_vec.push(Language::from_str(i)?);
+        }
+
+        Ok(new_vec)
+    }
 }
