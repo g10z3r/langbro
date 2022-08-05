@@ -1,5 +1,6 @@
 use async_graphql::{Context, Object, Result as GraphQLResult};
 use std::sync::Arc;
+use validator::Validate;
 
 use crate::app::api::security::auth::{self, AccessClaims, Token};
 use crate::app::core::error::CustomError;
@@ -21,6 +22,8 @@ impl<'a> ProfileMutation {
         ctx: &'a Context<'_>,
         profile_input: ProfileRegistrationInput,
     ) -> GraphQLResult<&str> {
+        profile_input.validate()?;
+
         let profile = Profile::new(profile_input)?;
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
 
@@ -34,12 +37,12 @@ impl<'a> ProfileMutation {
         ctx: &'a Context<'_>,
         login_input: ProfileLoginInput,
     ) -> GraphQLResult<ProfileLoginOutput> {
+        login_input.validate()?;
+
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
         let profile = profile_service
             .get_by_username(login_input.username)
             .await?;
-
-            println!("{}", profile.permissions);
 
         let access_token = Token::encode(auth::AccessClaims::new(
             profile.id.to_string(),
@@ -54,7 +57,9 @@ impl<'a> ProfileMutation {
         Ok(ProfileLoginOutput::create(access_token, refresh_token))
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::User)")]
+    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
+        .or(AuthGuard::new(Permissions::Developer))
+        .or(AuthGuard::new(Permissions::User))")]
     async fn subscribe(&'a self, ctx: &'a Context<'_>, to_id: String) -> GraphQLResult<&str> {
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
         let access_claims = ctx

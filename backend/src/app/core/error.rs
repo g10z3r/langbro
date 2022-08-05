@@ -2,6 +2,7 @@ use actix_web::http::header::ToStrError;
 use async_graphql::{Error as GraphQLError, ErrorExtensions as GraphQLErrorExtensions};
 use strum::ParseError;
 use thiserror::Error;
+use validator::ValidationErrors;
 
 #[macro_export]
 macro_rules! neo4j_result {
@@ -94,6 +95,17 @@ impl From<ParseError> for CustomError {
         CustomError::new()
             .kind(Unprocessable)
             .details(&source.to_string())
+            .build()
+    }
+}
+
+impl From<ValidationErrors> for CustomError {
+    fn from(err: ValidationErrors) -> Self {
+        use self::CustomErrorKind::Unprocessable;
+
+        CustomError::new()
+            .kind(Unprocessable)
+            .details(&(err.to_string()))
             .build()
     }
 }
