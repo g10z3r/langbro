@@ -37,20 +37,34 @@ endef
 
 # Обновление файлов окружение в разных папках
 env:
-# Проверяю наличие файла
+# 	Проверяю наличие главного .env файла 
 	@if [ ! -e .env ]; then\
 		echo .env file was not found && \
 		exit 1 ;\
 	fi
 
-# Проверяю права файла
+# 	Проверяю права файла env_init.sh
 	@if [  ! $(shell stat -c %A $(CI_SCRIPTS)/env_init.sh) = -rwxrwxr-x ]; then\
 		sudo chmod +x $(CI_SCRIPTS)/env_init.sh ;\
 	fi
 	
-# Запускаю создание переменных окружения
+# 	Запускаю создание/обновление переменных окружения
 	$(shell $(CI_SCRIPTS)/env_init.sh)
 
+
+#	Проверяю наличие файла languages_set.sh
+	@if [ ! -e "$(CI_SCRIPTS)/languages_set.sh" ]; then\
+		echo languages_set.sh file was not found && \
+		exit 1 ;\
+	fi
+
+# 	Проверяю права файла languages_set.sh
+	@if [  ! $(shell stat -c %A $(CI_SCRIPTS)/languages_set.sh) = -rwxrwxr-x ]; then\
+		sudo chmod +x $(CI_SCRIPTS)/languages_set.sh ;\
+	fi
+
+# 	Запускаю создание языкового файла
+	$(shell $(CI_SCRIPTS)/languages_set.sh)
 
 
 # Предварительный просмотр docker-compose файла
@@ -70,6 +84,7 @@ build-backend: env
 	$(shell $(call base_docker_cmd, $(DOCKER_DIR),$(DOCKER_ENV))) build \
 		--build-arg BUILD_ARGS="$(BACKEND_BUILD_ARGS)" \
 		$(shell $(call is_need_to_use_cache, $(CACHE)))
+	
 
 
 # Запуск backend'a
