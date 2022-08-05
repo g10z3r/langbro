@@ -1,6 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use chrono::Utc;
 use neo4rs::Graph;
+use neo4rs::Node;
 use std::sync::Arc;
 
 use crate::{app::core::error::CustomError, neo4j_result};
@@ -8,22 +10,89 @@ use crate::{app::core::error::CustomError, neo4j_result};
 use super::profile_model::Profile;
 
 #[async_trait]
-pub trait ProfileServiceT: Send + Sync {
+pub trait ProfileRepositoryT: Send + Sync {
     async fn create(&self, profile: Profile) -> Result<(), CustomError>;
+    async fn get_by_username(&self, username: String) -> Result<Profile, CustomError>;
+    async fn subscribe(&self, to_id: String, from_id: String) -> Result<(), CustomError>;
+    async fn get_by_id(&self, id: String) -> Result<Profile, CustomError>;
 }
 
-pub struct ProfileService {
+pub struct ProfileRepository {
     neo: Arc<Graph>,
 }
 
-impl ProfileService {
+impl ProfileRepository {
     pub fn new(neo4j: &Arc<Graph>) -> Self {
         Self { neo: neo4j.clone() }
     }
 }
 
 #[async_trait]
-impl ProfileServiceT for ProfileService {
+impl ProfileRepositoryT for ProfileRepository {
+    async fn get_by_id(&self, id: String) -> Result<Profile, CustomError> {
+        use crate::app::core::error::CustomErrorKind::{Internal, NotFound};
+
+        let query = neo4rs::query("MATCH (p:Person {id: $id}) RETURN p").param("id", id);
+        let mut result = neo4j_result!(self.neo.execute(query).await)?;
+
+        match neo4j_result!(result.next().await)? {
+            Some(row) => {
+                let node = row.get::<Node>("p").unwrap();
+
+                match Profile::from_node(node) {
+                    Ok(profile) => Ok(profile),
+                    Err(error) => Err(CustomError::new()
+                        .kind(Internal)
+                        .details(error.to_string().as_str())
+                        .build()),
+                }
+            }
+            None => Err(CustomError::new().kind(NotFound).build()),
+        }
+    }
+
+    async fn subscribe(&self, to_id: String, from_id: String) -> Result<(), CustomError> {
+        let query = neo4rs::query(
+            "
+                MATCH (e:Person) WHERE e.id = $form
+                MATCH (d:Person) WHERE d.id = $to
+
+                CREATE (e)-[:SUBSCRIBE {timestamp: $timestamp}]->(d)
+            ",
+        )
+        .param("form", from_id)
+        .param("to", to_id)
+        .param("timestamp", Utc::now().timestamp());
+
+        neo4j_result!(self.neo.run(query).await)?;
+
+        Ok(())
+    }
+
+    async fn get_by_username(&self, username: String) -> Result<Profile, CustomError> {
+        use crate::app::core::error::CustomErrorKind::{Internal, NotFound};
+
+        let query = neo4rs::query("MATCH (p:Person {username: $username}) RETURN p")
+            .param("username", username);
+        let mut result = self.neo.execute(query).await.expect("Faild to get record");
+
+        match neo4j_result!(result.next().await)? {
+            Some(row) => {
+                let node = row.get::<Node>("p").unwrap();
+
+                match Profile::from_node(node) {
+                    Ok(profile) => Ok(profile),
+                    Err(error) => Err(CustomError::new()
+                        .kind(Internal)
+                        .details(error.to_string().as_str())
+                        .build()),
+                }
+            }
+
+            None => Err(CustomError::new().kind(NotFound).build()),
+        }
+    }
+
     async fn create(&self, profile: Profile) -> Result<(), CustomError> {
         let txn = self.neo.start_txn().await?;
 

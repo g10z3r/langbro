@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use crate::{
     app::db::neo4j,
-    model::profile::profile_service::{ProfileService, ProfileServiceT},
+    model::profile::profile_repository::{ProfileRepository, ProfileRepositoryT},
 };
 
 pub struct Context {
     pub neodb: Arc<Graph>,
-    pub profile_service: Arc<dyn ProfileServiceT>,
+    pub profile_service: Arc<dyn ProfileRepositoryT>,
 }
 
 impl Context {
@@ -17,8 +17,8 @@ impl Context {
         let neodb = Arc::new(neo4j::connect().await?);
 
         Ok(Self {
-            profile_service: Arc::new(ProfileService::new(&neodb)),
-            neodb,            
+            profile_service: Arc::new(ProfileRepository::new(&neodb)),
+            neodb,
         })
     }
 }
