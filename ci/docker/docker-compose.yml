@@ -16,9 +16,9 @@ services:
     container_name: "langbro_neo4j"
     volumes:
       - $HOME/neo4j/data:/data
-      - $HOME/neo4j/logs:/logs
-      # - ./data.csv:/var/lib/neo4j/import/data.csv
+      - $HOME/neo4j/logs:/logs     
       - $HOME/neo4j/plugins:/plugins
+      # - ../../data:/var/lib/neo4j/import
     ports:
       - "7474:7474"
       - "7687:7687"
