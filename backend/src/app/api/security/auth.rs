@@ -6,12 +6,12 @@ use jsonwebtoken::{DecodingKey, EncodingKey, Validation};
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::app::core::error::CustomError;
-use crate::model::profile::profile_model::Permissions;
+use crate::model::profile::profile_model::Permission;
 
-pub struct AuthGuard(Permissions);
+pub struct AuthGuard(Permission);
 
 impl AuthGuard {
-    pub fn new(p: Permissions) -> Self {
+    pub fn new(p: Permission) -> Self {
         Self(p)
     }
 }
@@ -45,7 +45,7 @@ fn split_token(header_value: &str) -> Vec<&str> {
     split.collect::<Vec<&str>>()
 }
 
-pub fn parse_auth(http_request: HttpRequest) -> Result<Option<AccessClaims>, CustomError> {
+pub fn parse_auth<'a>(http_request: HttpRequest) -> Result<Option<AccessClaims>, CustomError<'a>> {
     match http_request.headers().get("Authorization") {
         Some(token) if split_token(token.to_str()?).len() == 2 => {
             let claims = Token::<AccessClaims>::decode(split_token(token.to_str()?)[1])?;
@@ -72,11 +72,11 @@ pub fn parse_auth(http_request: HttpRequest) -> Result<Option<AccessClaims>, Cus
 pub struct AccessClaims {
     sub: String,
     exp: i64,
-    permission: Permissions,
+    permission: Permission,
 }
 
 impl AccessClaims {
-    pub fn new(sub: String, permission: Permissions, d: Duration) -> AccessClaims {
+    pub fn new(sub: String, permission: Permission, d: Duration) -> AccessClaims {
         // Определение скрока пригодности токена
         let exp = Utc::now() + d;
 
