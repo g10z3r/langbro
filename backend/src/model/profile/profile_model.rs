@@ -1,5 +1,4 @@
 use std::str::FromStr;
-
 use anyhow::Result;
 use argon2::Config;
 use async_graphql::{Enum, Object};
@@ -8,7 +7,10 @@ use rand::Rng;
 use strum_macros::{Display, EnumString};
 use uuid::Uuid;
 
-use crate::{app::api::security::auth::AuthGuard, model::language::language_model::Language};
+use crate::{
+    app::api::security::auth::AuthGuard,
+    model::language::language_model::{Language, StudLang},
+};
 
 use super::profile_mutation::ProfileRegistrationInput;
 
@@ -40,6 +42,7 @@ pub struct Profile {
     pub(super) age: u8,
     pub(super) description: Option<String>,
     pub(super) native_languages: Vec<Language>,
+    pub(super) studied_languages: Vec<StudLang>,
     pub(super) created_at: i64,
     pub(super) updated_at: i64,
 }
@@ -58,6 +61,7 @@ impl Profile {
             age: profile_input.age,
             description: profile_input.description,
             native_languages: Language::from_string_vec(profile_input.native_languages)?,
+            studied_languages: profile_input.studied_languages,
             created_at: Utc::now().timestamp(),
             updated_at: Utc::now().timestamp(),
         };
@@ -76,6 +80,10 @@ impl Profile {
 
 impl Profile {
     pub(super) fn from_node(node: neo4rs::Node) -> Result<Self> {
+        use neo4rs::types::BoltList;
+
+        println!("{:#?}", node);
+
         Ok(Self {
             id: Uuid::parse_str(&node.get::<String>("id").expect("Faild to get node id"))?,
             email: node.get::<String>("email").expect("Faild to get node id"),
@@ -91,7 +99,13 @@ impl Profile {
             sex: node.get::<i64>("sex").expect("Faild to get node id") as u8,
             age: node.get::<i64>("age").expect("Faild to get node id") as u8,
             description: node.get::<String>("description"),
-            native_languages: Vec::new(),
+            native_languages: node
+                .get::<BoltList>("native_languages")
+                .unwrap()
+                .into_iter()
+                .map(|v| v.into())
+                .collect(),
+            studied_languages: Vec::new(),
             created_at: node.get::<i64>("created_at").expect("Faild to get node id"),
             updated_at: node.get::<i64>("updated_at").expect("Faild to get node id"),
         })

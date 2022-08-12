@@ -1,17 +1,18 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Utc;
-use neo4rs::Graph;
-use neo4rs::Node;
+use neo4rs::{Graph, Node};
 use std::sync::Arc;
 
+use crate::app::db::neo4j::NULL;
+use crate::model::language::language_model::{Language, StudLang};
 use crate::{app::core::error::CustomError, neo4j_result};
 
 use super::profile_model::Profile;
 
 #[async_trait]
 pub trait ProfileRepositoryT: Send + Sync {
-    async fn create(&self, profile: Profile) -> Result<(), CustomError>;
+    async fn create(&self, profile: Arc<Profile>) -> Result<(), CustomError>;
     async fn get_by_username(&self, username: String) -> Result<Profile, CustomError>;
     async fn subscribe(&self, to_id: String, from_id: String) -> Result<(), CustomError>;
     async fn get_by_id(&self, id: String) -> Result<Profile, CustomError>;
@@ -32,11 +33,22 @@ impl ProfileRepositoryT for ProfileRepository {
     async fn get_by_id(&self, id: String) -> Result<Profile, CustomError> {
         use crate::app::core::error::CustomErrorKind::{Internal, NotFound};
 
-        let query = neo4rs::query("MATCH (p:Person {id: $id}) RETURN p").param("id", id);
+        let query = neo4rs::query(
+            "
+        MATCH (n:Profile {id: $id})-[r]-(l)
+        RETURN r, l
+        ",
+        )
+        .param("id", id);
         let mut result = neo4j_result!(self.neo.execute(query).await)?;
+
+
+        println!("{:#?}", result.next().await.unwrap());
 
         match neo4j_result!(result.next().await)? {
             Some(row) => {
+                // println!("{:#?}", row);
+
                 let node = row.get::<Node>("p").unwrap();
 
                 match Profile::from_node(node) {
@@ -54,8 +66,8 @@ impl ProfileRepositoryT for ProfileRepository {
     async fn subscribe(&self, to_id: String, from_id: String) -> Result<(), CustomError> {
         let query = neo4rs::query(
             "
-                MATCH (e:Person) WHERE e.id = $form
-                MATCH (d:Person) WHERE d.id = $to
+                MATCH (e:Profile) WHERE e.id = $form
+                MATCH (d:Profile) WHERE d.id = $to
 
                 CREATE (e)-[:SUBSCRIBE {timestamp: $timestamp}]->(d)
             ",
@@ -72,7 +84,7 @@ impl ProfileRepositoryT for ProfileRepository {
     async fn get_by_username(&self, username: String) -> Result<Profile, CustomError> {
         use crate::app::core::error::CustomErrorKind::{Internal, NotFound};
 
-        let query = neo4rs::query("MATCH (p:Person {username: $username}) RETURN p")
+        let query = neo4rs::query("MATCH (p:Profile {username: $username}) RETURN p")
             .param("username", username);
         let mut result = self.neo.execute(query).await.expect("Faild to get record");
 
@@ -93,78 +105,143 @@ impl ProfileRepositoryT for ProfileRepository {
         }
     }
 
-    async fn create(&self, profile: Profile) -> Result<(), CustomError> {
+    async fn create(&self, profile: Arc<Profile>) -> Result<(), CustomError> {
         let txn = self.neo.start_txn().await?;
 
-        let mut native_language_query_base = String::new();
-        let mut native_language_query_match =
-            String::from(format!("MATCH (p:Person) WHERE p.id = $id",));
-
-        let mut native_language_query_create = String::from("\n\nCREATE ");
-        for i in profile.native_languages.iter() {
-            // Выбираю все узлы необходимых языков
-            native_language_query_match.push_str(&format!(
-                "\nMATCH (language_{}:Language) WHERE language_{}.name = '{}'",
-                i.to_string(),
-                i.to_string(),
-                i.to_string()
-            ));
-
-            // Создаю связи между пользователями и выбранными узлами языков
-            native_language_query_create.push_str(&format!(
-                "(p)-[:NATIVE_SPEAKER]->(language_{}),",
-                i.to_string(),
-            ))
-        }
-
-        // Убираю последнею запятую
-        native_language_query_create.pop();
-
-        // Склеиваю все в один запрос
-        native_language_query_base.push_str(&native_language_query_match);
-        native_language_query_base.push_str(&native_language_query_create);
-
-        // Создание финального запроса для установки связей межде пользователем и его родными языками
-        let native_language_query_base =
-            neo4rs::query(&native_language_query_base).param("id", profile.id.to_string());
-
-        let base_query = neo4rs::query(
-            "CREATE (p:Person {
-            id: $id, 
-            email: $email, 
-            hash: $hash,            
-            username: $username, 
-            first_name: $first_name, 
-            last_name: NULL, 
-            sex: $sex, 
-            age: $age, 
-            description: $description, 
-            created_at: $created_at, 
-            updated_at: $updated_at
-        })
-        
-        SET p:User
-        ",
-        )
-        .param("id", profile.id.to_string())
-        .param("email", profile.email)
-        .param("hash", profile.hash)
-        .param("username", profile.username)
-        .param("first_name", profile.first_name)
-        .param("last_name", profile.last_name.unwrap_or("".to_string()))
-        .param("sex", profile.sex as i64)
-        .param("age", profile.age as i64)
-        .param("description", profile.description.unwrap_or("".to_string()))
-        .param("created_at", profile.created_at)
-        .param("updated_at", profile.updated_at);
-
         neo4j_result!(
-            txn.run_queries(vec![base_query, native_language_query_base])
-                .await
+            txn.run_queries(vec![
+                create_user_query(&profile),
+                set_relationships_query(&profile)
+            ])
+            .await
         )?;
 
         neo4j_result!(txn.commit().await)?;
 
         Ok(())
     }
+}
+
+/// Вспомогательная функция для формирования запроса на создание узла пользователя
+fn create_user_query(profile: &Arc<Profile>) -> neo4rs::Query {
+    neo4rs::query(&format!(
+        "CREATE (p:Profile {{
+            id: $id, 
+            email: $email, 
+            hash: $hash,            
+            username: $username, 
+            first_name: $first_name, 
+            last_name: {last_name}, 
+            sex: $sex, 
+            age: $age, 
+            description: {description}, 
+            created_at: $created_at, 
+            updated_at: $updated_at
+        }})
+
+        SET p:User
+    ",
+        last_name = if profile.last_name.is_some() {
+            profile.last_name.as_ref().unwrap()
+        } else {
+            NULL
+        },
+        description = if profile.description.is_some() {
+            profile.description.as_ref().unwrap()
+        } else {
+            NULL
+        }
+    ))
+    .param("id", profile.id.to_string())
+    .param("email", profile.email.to_string())
+    .param("hash", profile.hash.to_string())
+    .param("username", profile.username.to_string())
+    .param("first_name", profile.first_name.to_string())
+    .param("sex", profile.sex as i64)
+    .param("age", profile.age as i64)
+    .param("created_at", profile.created_at)
+    .param("updated_at", profile.updated_at)
+}
+
+/// Вспомогательная функция в отвечающая за создание связей с языковыми узлами
+///
+/// Связь с языковыми узлами устанавливается двух типов:
+/// 1. NATIVE_SPEAKER (носитель языка)
+/// 2. STUDIED (изучение зыка)
+///
+/// Связь типа NATIVE_SPEAKER не содержит параметров.
+/// Связь типа STUDIED а параметрах содержит параметр прогресса в изучении.
+/// Прогресс в изучении поределяется по шкале CEFR.
+fn set_relationships_query(profile: &Arc<Profile>) -> neo4rs::Query {
+    // Получение пользователя которому необходимо установить отношения
+    let mut base = format!(
+        "MATCH (p:Profile) WHERE p.id = '{}'\n",
+        profile.id.to_string()
+    );
+    let mut create_query = String::from("\n\nCREATE");
+
+    let (studied_match_query, studied_create_query) =
+        studied_languages_pquery(&profile.studied_languages);
+    let (native_match_query, native_create_query) =
+        native_languages_pquery(&profile.native_languages);
+
+    // Объединение запросов создания связей
+    create_query.push_str(&studied_create_query);
+    create_query.push_str(&native_create_query);
+    // Удаление последнего символа
+    create_query.pop();
+
+    // Объединение в финальный запрос
+    base.push_str(&studied_match_query);
+    base.push_str(&native_match_query);
+    base.push_str(&create_query);
+
+    neo4rs::Query::new(base)
+}
+
+fn studied_languages_pquery(studied_languages: &Vec<StudLang>) -> (String, String) {
+    let mut create_query = String::new();
+
+    // Получение запрашиваемых языковых узлов
+    let match_query = studied_languages
+        .iter()
+        .map(|item| {
+            // Формирование запроса на создание связи
+            create_query.push_str(&format!(" (p)-[:STUDIED]->(language_{}),", item.lang));
+
+            // Формирование запроса для получения нужного языкового узла
+            format!(
+                "\nMATCH (language_{}:Language) WHERE language_{}.name = '{}'",
+                item.lang, item.lang, item.lang
+            )
+        })
+        .collect::<String>();
+
+    (match_query, create_query)
+}
+
+fn native_languages_pquery(native_languages: &Vec<Language>) -> (String, String) {
+    let mut create_query = String::new();
+
+    // Получение запрашиваемых языковых узлов
+    let match_query = native_languages
+        .iter()
+        .map(|item| {
+            // Формирование запроса на создание связи
+            create_query.push_str(&format!(
+                " (p)-[:NATIVE_SPEAKER]->(language_{}),",
+                item.to_string()
+            ));
+
+            // Формирование запроса для получения нужного языкового узла
+            format!(
+                "\nMATCH (language_{}:Language) WHERE language_{}.name = '{}'",
+                item.to_string(),
+                item.to_string(),
+                item.to_string()
+            )
+        })
+        .collect::<String>();
+
+    (match_query, create_query)
 }

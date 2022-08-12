@@ -1,7 +1,10 @@
 use async_graphql::{InputObject, Object};
 use validator::Validate;
 
-use crate::app::utils::{regex::RE_NAME, validation::validate_query};
+use crate::{
+    app::utils::{regex::RE_NAME, validation::validate_query},
+    model::language::language_model::StudLang,
+};
 
 #[derive(Validate, Serialize, Deserialize, InputObject)]
 pub struct ProfileRegistrationInput {
@@ -42,19 +45,22 @@ pub struct ProfileRegistrationInput {
 
     #[validate(length(min = 1, max = 3, message = "Lenght is invalid"))]
     pub(super) native_languages: Vec<String>,
+
+    #[validate(length(min = 1, max = 5, message = "Lenght is invalid"))]
+    pub(super) studied_languages: Vec<StudLang>,
 }
 
 #[derive(Validate, Serialize, Deserialize, InputObject)]
 pub struct ProfileLoginInput {
     #[validate(
         length(min = 4, max = 10, message = "Lenght is invalid"),
-        custom(function = "validate_query", message = "Invalid format")
+        custom(function = "validate_query", message = "Invalid format of username")
     )]
     pub(super) username: String,
-    
+
     #[validate(
         length(min = 8, max = 20, message = "Lenght is invalid"),
-        custom(function = "validate_query", message = "Invalid format")
+        custom(function = "validate_query", message = "Invalid format of password")
     )]
     pub(super) password: String,
 }

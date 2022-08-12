@@ -24,7 +24,7 @@ impl<'a> ProfileMutation {
     ) -> GraphQLResult<&str> {
         profile_input.validate()?;
 
-        let profile = Profile::new(profile_input)?;
+        let profile = Arc::new(Profile::new(profile_input)?);
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
 
         profile_service.create(profile).await?;

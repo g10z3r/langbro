@@ -4,4 +4,4 @@ pub mod profile_repository;
 
 mod profile_mutation;
 mod profile_connections;
-
+mod profile_node;
