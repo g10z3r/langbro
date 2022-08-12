@@ -8,7 +8,7 @@ use crate::model::profile::profile_resolver::auth::AuthGuard;
 
 use super::profile_repository::ProfileRepositoryT;
 use super::{
-    profile_model::{Permissions, Profile},
+    profile_model::{Permission, Profile},
     profile_mutation::{ProfileLoginInput, ProfileLoginOutput, ProfileRegistrationInput},
 };
 
@@ -46,7 +46,7 @@ impl<'a> ProfileMutation {
 
         let access_token = Token::encode(auth::AccessClaims::new(
             profile.id.to_string(),
-            profile.permissions,
+            profile.permission,
             chrono::Duration::minutes(15),
         ))?;
         let refresh_token = Token::encode(auth::RefreshClaims::new(
@@ -57,9 +57,9 @@ impl<'a> ProfileMutation {
         Ok(ProfileLoginOutput::create(access_token, refresh_token))
     }
 
-    #[graphql(guard = "AuthGuard::new(Permissions::Admin)
-        .or(AuthGuard::new(Permissions::Developer))
-        .or(AuthGuard::new(Permissions::User))")]
+    #[graphql(guard = "AuthGuard::new(Permission::Admin)
+        .or(AuthGuard::new(Permission::Developer))
+        .or(AuthGuard::new(Permission::User))")]
     async fn subscribe(&'a self, ctx: &'a Context<'_>, to_id: String) -> GraphQLResult<&str> {
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
         let access_claims = ctx

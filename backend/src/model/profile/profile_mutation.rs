@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::{
     app::utils::{regex::RE_NAME, validation::validate_query},
-    model::language::language_model::StudLang,
+    model::language::language_mutation::StudLangInput,
 };
 
 #[derive(Validate, Serialize, Deserialize, InputObject)]
@@ -47,7 +47,7 @@ pub struct ProfileRegistrationInput {
     pub(super) native_languages: Vec<String>,
 
     #[validate(length(min = 1, max = 5, message = "Lenght is invalid"))]
-    pub(super) studied_languages: Vec<StudLang>,
+    pub(super) studied_languages: Vec<StudLangInput>,
 }
 
 #[derive(Validate, Serialize, Deserialize, InputObject)]
