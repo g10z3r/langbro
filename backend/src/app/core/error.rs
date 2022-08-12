@@ -12,10 +12,34 @@ macro_rules! neo4j_result {
     }};
 }
 
+#[macro_export]
+macro_rules! internal {
+    ($x:expr) => {{
+        use crate::app::core::error::{CustomError, CustomErrorKind::Internal};
+        CustomError::new().kind(Internal).details($x).build()
+    }};
+}
+
+#[macro_export]
+macro_rules! unprocessable {
+    ($x:expr) => {{
+        use crate::app::core::error::{CustomError, CustomErrorKind::Unprocessable};
+        CustomError::new().kind(Unprocessable).details($x).build()
+    }};
+}
+
+#[macro_export]
+macro_rules! not_found {
+    ($x:expr) => {{
+        use crate::app::core::error::{CustomError, CustomErrorKind::NotFound};
+        CustomError::new().kind(NotFound($x)).build()
+    }};
+}
+
 #[derive(Debug, Clone, Error, Serialize)]
-pub enum CustomErrorKind {
-    #[error("Could not find resource")]
-    NotFound,
+pub enum CustomErrorKind<'a> {
+    #[error("Could not find resource {0}")]
+    NotFound(&'a str),
 
     #[error("Resource access denied")]
     Forbidden,
@@ -40,14 +64,14 @@ pub enum CustomErrorKind {
 }
 
 #[derive(Debug, Serialize)]
-pub struct CustomError {
+pub struct CustomError<'a> {
     message: String,
     details: Option<String>,
-    kind: CustomErrorKind,
+    kind: CustomErrorKind<'a>,
 }
 
-impl CustomError {
-    pub fn new() -> CustomErrorBuilder {
+impl<'a> CustomError<'a> {
+    pub fn new() -> CustomErrorBuilder<'a> {
         CustomErrorBuilder::new()
     }
 
@@ -65,7 +89,7 @@ impl CustomError {
 
     pub fn serde_kind(&self) -> &str {
         match self.kind {
-            CustomErrorKind::NotFound => "NOT_FOUND",
+            CustomErrorKind::NotFound(_) => "NOT_FOUND",
             CustomErrorKind::Forbidden => "FORBIDDEN",
             CustomErrorKind::Unprocessable => "UNPROCESSABLE",
             CustomErrorKind::Internal => "INTERNAL",
@@ -77,45 +101,36 @@ impl CustomError {
     }
 }
 
-impl From<ToStrError> for CustomError {
+impl<'a> From<uuid::Error> for CustomError<'a> {
+    fn from(err: uuid::Error) -> Self {
+        internal!(&(err.to_string()))
+    }
+}
+
+impl<'a> From<ToStrError> for CustomError<'a> {
     fn from(source: ToStrError) -> Self {
-        use self::CustomErrorKind::Internal;
-
-        CustomError::new()
-            .kind(Internal)
-            .details(&source.to_string())
-            .build()
+        internal!(&source.to_string())
     }
 }
 
-impl From<ParseError> for CustomError {
+impl<'a> From<ParseError> for CustomError<'a> {
     fn from(source: ParseError) -> Self {
-        use self::CustomErrorKind::Unprocessable;
-
-        CustomError::new()
-            .kind(Unprocessable)
-            .details(&source.to_string())
-            .build()
+        unprocessable!(&source.to_string())
     }
 }
 
-impl From<ValidationErrors> for CustomError {
+impl<'a> From<ValidationErrors> for CustomError<'a> {
     fn from(err: ValidationErrors) -> Self {
-        use self::CustomErrorKind::Unprocessable;
-
-        CustomError::new()
-            .kind(Unprocessable)
-            .details(&(err.to_string()))
-            .build()
+        unprocessable!(&(err.to_string()))
     }
 }
 
-pub struct CustomErrorBuilder {
+pub struct CustomErrorBuilder<'a> {
     details: Option<String>,
-    kind: CustomErrorKind,
+    kind: CustomErrorKind<'a>,
 }
 
-impl Default for CustomErrorBuilder {
+impl<'a> Default for CustomErrorBuilder<'a> {
     fn default() -> Self {
         Self {
             details: None,
@@ -124,12 +139,12 @@ impl Default for CustomErrorBuilder {
     }
 }
 
-impl CustomErrorBuilder {
+impl<'a> CustomErrorBuilder<'a> {
     fn new() -> Self {
         Self::default()
     }
 
-    pub fn kind(mut self, kind: CustomErrorKind) -> Self {
+    pub fn kind(mut self, kind: CustomErrorKind<'a>) -> Self {
         self.kind = kind;
 
         self
@@ -153,7 +168,7 @@ impl CustomErrorBuilder {
         }
     }
 
-    pub fn build(self) -> CustomError {
+    pub fn build(self) -> CustomError<'a> {
         CustomError {
             message: self.kind.to_string(),
             details: self.details,
@@ -162,7 +177,7 @@ impl CustomErrorBuilder {
     }
 }
 
-impl From<CustomError> for GraphQLError {
+impl<'a> From<CustomError<'a>> for GraphQLError {
     fn from(err: CustomError) -> Self {
         GraphQLError::new(&err.message)
             .extend_with(|_, e| e.set("kind", err.serde_kind()))
@@ -170,7 +185,7 @@ impl From<CustomError> for GraphQLError {
     }
 }
 
-impl From<jsonwebtoken::errors::Error> for CustomError {
+impl<'a> From<jsonwebtoken::errors::Error> for CustomError<'a> {
     fn from(err: jsonwebtoken::errors::Error) -> Self {
         use self::CustomErrorKind::{Internal, TokenExpired, TokenInvalid};
 
@@ -191,7 +206,7 @@ impl From<jsonwebtoken::errors::Error> for CustomError {
     }
 }
 
-impl From<neo4rs::Error> for CustomError {
+impl<'a> From<neo4rs::Error> for CustomError<'a> {
     fn from(err: neo4rs::Error) -> Self {
         use self::CustomErrorKind::Internal;
 
@@ -217,7 +232,9 @@ impl From<neo4rs::Error> for CustomError {
     }
 }
 
-pub fn handle_neo4j_result<T>(neo4j_result: Result<T, neo4rs::Error>) -> Result<T, CustomError> {
+pub fn handle_neo4j_result<'a, T>(
+    neo4j_result: Result<T, neo4rs::Error>,
+) -> Result<T, CustomError<'a>> {
     match neo4j_result {
         Ok(data) => Ok(data),
         Err(err) => Err(err.into()),
