@@ -5,10 +5,11 @@ use neo4rs::{Graph, Node, RowStream};
 use std::sync::Arc;
 
 use crate::app::db::neo4j::NULL;
-use crate::model::language::language_model::{Language, StudLang};
+use crate::model::language::language_model::{CefrKind, Language, StudLang};
 use crate::{app::core::error::CustomError, neo4j_result};
 
 use super::profile_model::Profile;
+use super::profile_mutation::EditProfileInput;
 use super::profile_node::{NATIVE_SPEAKER, STUDIED};
 
 type EmptyResult<'a> = Result<(), CustomError<'a>>;
@@ -25,6 +26,13 @@ pub trait ProfileRepositoryT: Send + Sync {
         profile_id: String,
         lang: Language,
     ) -> EmptyResult;
+    async fn edit_lang_level(
+        &self,
+        profile_id: String,
+        lang: Language,
+        level: CefrKind,
+    ) -> EmptyResult;
+    async fn edit_profile_props(&self, input: EditProfileInput, id: String) -> EmptyResult;
 
     async fn get_by_id(&self, id: String) -> Result<Profile, CustomError>;
 }
@@ -43,6 +51,60 @@ impl ProfileRepository {
 impl ProfileRepositoryT for ProfileRepository {
     /* ======================== MUTATIONS ======================== */
 
+    async fn edit_profile_props(&self, input: EditProfileInput, id: String) -> EmptyResult {
+        let query = neo4rs::query(&format!(
+            "
+            MATCH (n:Profile) WHERE n.id = $id
+
+            SET n.username = $username
+            SET n.first_name = $first_name
+            SET n.last_name = {last_name}
+            SET n.description = {description}
+
+            RETURN n
+            ",
+            last_name = if input.last_name.is_some() {
+                format!("'{}'", input.last_name.unwrap())
+            } else {
+                NULL.to_string()
+            },
+            description = if input.description.is_some() {
+                format!("'{}'", input.description.unwrap())
+            } else {
+                NULL.to_string()
+            }
+        ))
+        .param("id", id)
+        .param("username", input.username)
+        .param("first_name", input.first_name);
+
+        neo4j_result!(self.neo.run(query).await)?;
+        Ok(())
+    }
+
+    /// Обновить CEFR поле в связи узла :Profile и :Language
+    async fn edit_lang_level(
+        &self,
+        profile_id: String,
+        lang: Language,
+        level: CefrKind,
+    ) -> EmptyResult {
+        let query = neo4rs::query(
+            "
+            MATCH (p:Profile)-[r:STUDIED]->(l:Language)
+            WHERE p.id = $id AND l.name = $name
+            SET r.cefr = $level
+            ",
+        )
+        .param("id", profile_id)
+        .param("name", lang.to_string())
+        .param("level", level.to_string());
+
+        neo4j_result!(self.neo.run(query).await)?;
+        Ok(())
+    }
+
+    /// Удалить связь нужного типа с конкретным языком
     async fn remove_language(
         &self,
         rel_type: String,
@@ -189,14 +251,14 @@ fn create_user_query(profile: &Arc<Profile>) -> neo4rs::Query {
         SET p:User
     ",
         last_name = if profile.last_name.is_some() {
-            profile.last_name.as_ref().unwrap()
+            format!("'{}'", profile.last_name.as_ref().unwrap())
         } else {
-            NULL
+            NULL.to_string()
         },
         description = if profile.description.is_some() {
-            profile.description.as_ref().unwrap()
+            format!("'{}'", profile.description.as_ref().unwrap())
         } else {
-            NULL
+            NULL.to_string()
         }
     ))
     .param("id", profile.id.to_string())

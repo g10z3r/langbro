@@ -7,6 +7,30 @@ use crate::{
 };
 
 #[derive(Validate, Serialize, Deserialize, InputObject)]
+pub struct EditProfileInput {
+    #[validate(
+        length(min = 4, max = 10, message = "Lenght is invalid"),
+        custom(function = "validate_query", message = "Invalid format")
+    )]
+    pub(super) username: String,
+
+    #[validate(
+        length(min = 2, max = 10, message = "Lenght is invalid"),
+        regex = "RE_NAME"
+    )]
+    pub(super) first_name: String,
+
+    #[validate(
+        length(min = 2, max = 10, message = "Lenght is invalid"),
+        regex = "RE_NAME"
+    )]
+    pub(super) last_name: Option<String>,
+
+    #[validate(length(max = 10, message = "Lenght is invalid"))]
+    pub(super) description: Option<String>,
+}
+
+#[derive(Validate, Serialize, Deserialize, InputObject)]
 pub struct ProfileRegistrationInput {
     #[validate(email)]
     pub(super) email: String,
