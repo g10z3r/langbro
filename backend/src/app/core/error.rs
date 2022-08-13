@@ -22,9 +22,12 @@ macro_rules! internal {
 
 #[macro_export]
 macro_rules! unprocessable {
-    ($x:expr) => {{
+    ( $k:expr, $d:expr ) => {{
         use crate::app::core::error::{CustomError, CustomErrorKind::Unprocessable};
-        CustomError::new().kind(Unprocessable).details($x).build()
+        CustomError::new()
+            .kind(Unprocessable($k))
+            .some_details($d)
+            .build()
     }};
 }
 
@@ -38,14 +41,14 @@ macro_rules! not_found {
 
 #[derive(Debug, Clone, Error, Serialize)]
 pub enum CustomErrorKind<'a> {
-    #[error("Could not find resource {0}")]
+    #[error("Could not find resource `{0}`")]
     NotFound(&'a str),
 
     #[error("Resource access denied")]
     Forbidden,
 
-    #[error("The received data is not valid")]
-    Unprocessable,
+    #[error("The received `{0}` is not valid")]
+    Unprocessable(&'a str),
 
     #[error("An internal error has occurred")]
     Internal,
@@ -91,7 +94,7 @@ impl<'a> CustomError<'a> {
         match self.kind {
             CustomErrorKind::NotFound(_) => "NOT_FOUND",
             CustomErrorKind::Forbidden => "FORBIDDEN",
-            CustomErrorKind::Unprocessable => "UNPROCESSABLE",
+            CustomErrorKind::Unprocessable(_) => "UNPROCESSABLE",
             CustomErrorKind::Internal => "INTERNAL",
             CustomErrorKind::TokenExpired => "TOKEN_EXPIRED",
             CustomErrorKind::TokenMissing => "TOKEN_MISSING",
@@ -115,13 +118,13 @@ impl<'a> From<ToStrError> for CustomError<'a> {
 
 impl<'a> From<ParseError> for CustomError<'a> {
     fn from(source: ParseError) -> Self {
-        unprocessable!(&source.to_string())
+        unprocessable!("data", Some(source.to_string()))
     }
 }
 
 impl<'a> From<ValidationErrors> for CustomError<'a> {
     fn from(err: ValidationErrors) -> Self {
-        unprocessable!(&(err.to_string()))
+        unprocessable!("data", Some(err.to_string()))
     }
 }
 
