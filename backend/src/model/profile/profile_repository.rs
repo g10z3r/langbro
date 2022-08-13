@@ -9,12 +9,23 @@ use crate::model::language::language_model::{Language, StudLang};
 use crate::{app::core::error::CustomError, neo4j_result};
 
 use super::profile_model::Profile;
+use super::profile_node::{NATIVE_SPEAKER, STUDIED};
+
+type EmptyResult<'a> = Result<(), CustomError<'a>>;
 
 #[async_trait]
 pub trait ProfileRepositoryT: Send + Sync {
-    async fn create(&self, profile: Arc<Profile>) -> Result<(), CustomError>;
+    async fn create(&self, profile: Arc<Profile>) -> EmptyResult;
     async fn get_by_username(&self, username: String) -> Result<Profile, CustomError>;
-    async fn subscribe(&self, to_id: String, from_id: String) -> Result<(), CustomError>;
+    async fn subscribe(&self, to_id: String, from_id: String) -> EmptyResult;
+    async fn unsubscribe(&self, profile_id: String, from_id: String) -> EmptyResult;
+    async fn remove_language(
+        &self,
+        rel_type: String,
+        profile_id: String,
+        lang: Language,
+    ) -> EmptyResult;
+
     async fn get_by_id(&self, id: String) -> Result<Profile, CustomError>;
 }
 
@@ -30,19 +41,53 @@ impl ProfileRepository {
 
 #[async_trait]
 impl ProfileRepositoryT for ProfileRepository {
-    async fn get_by_id(&self, id: String) -> Result<Profile, CustomError> {
-        let query = neo4rs::query(
-            "
-            MATCH (n:Profile {id: $id})-[r]-(l)
-            RETURN r, n, l",
-        )
-        .param("id", id);
-        let result = neo4j_result!(self.neo.execute(query).await)?;
+    /* ======================== MUTATIONS ======================== */
 
-        Ok(get_user_query(result).await?)
+    async fn remove_language(
+        &self,
+        rel_type: String,
+        profile_id: String,
+        lang_name: Language,
+    ) -> EmptyResult {
+        match rel_type.to_uppercase().as_str() {
+            NATIVE_SPEAKER | STUDIED => {
+                let query = neo4rs::query(&format!(
+                    "
+                        MATCH (p:Profile)-[r:{}]->(l:Language)
+                        WHERE p.id = $id AND l.name = $name
+                        DELETE r
+                    ",
+                    rel_type.to_uppercase()
+                ))
+                .param("id", profile_id)
+                .param("name", lang_name.to_string());
+
+                neo4j_result!(self.neo.run(query).await)?;
+                Ok(())
+            }
+
+            _ => Err(crate::unprocessable!("relationship", None)),
+        }
     }
 
-    async fn subscribe(&self, to_id: String, from_id: String) -> Result<(), CustomError> {
+    /// Удалить связь `:SUBSCRIBE` с указанным пользователем
+    async fn unsubscribe(&self, profile_id: String, from_id: String) -> EmptyResult {
+        let query = neo4rs::query(
+            "
+                MATCH (p1:Profile)-[r:SUBSCRIBE]->(p2:Profile)
+                WHERE p1.id = $id AND p2.id = $from_id
+                DELETE r
+            ",
+        )
+        .param("id", profile_id)
+        .param("from_id", from_id);
+
+        neo4j_result!(self.neo.run(query).await)?;
+        Ok(())
+    }
+
+    /// Создать связь `:SUBSCRIBE` с указанным пользователем
+    async fn subscribe(&self, to_id: String, from_id: String) -> EmptyResult {
         let query = neo4rs::query(
             "
                 MATCH (e:Profile) WHERE e.id = $form
@@ -56,7 +101,6 @@ impl ProfileRepositoryT for ProfileRepository {
         .param("timestamp", Utc::now().timestamp());
 
         neo4j_result!(self.neo.run(query).await)?;
-
         Ok(())
     }
 
@@ -72,7 +116,7 @@ impl ProfileRepositoryT for ProfileRepository {
         Ok(get_user_query(result).await?)
     }
 
-    async fn create(&self, profile: Arc<Profile>) -> Result<(), CustomError> {
+    async fn create(&self, profile: Arc<Profile>) -> EmptyResult {
         let txn = self.neo.start_txn().await?;
 
         neo4j_result!(
@@ -86,6 +130,20 @@ impl ProfileRepositoryT for ProfileRepository {
         neo4j_result!(txn.commit().await)?;
 
         Ok(())
+    }
+
+    /* ======================== QUERYS ======================== */
+
+    async fn get_by_id(&self, id: String) -> Result<Profile, CustomError> {
+        let query = neo4rs::query(
+            "
+            MATCH (n:Profile {id: $id})-[r]-(l)
+            RETURN r, n, l",
+        )
+        .param("id", id);
+        let result = neo4j_result!(self.neo.execute(query).await)?;
+
+        Ok(get_user_query(result).await?)
     }
 }
 

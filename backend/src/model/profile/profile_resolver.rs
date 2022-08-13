@@ -4,6 +4,7 @@ use validator::Validate;
 
 use crate::app::api::security::auth::{self, AccessClaims, Token};
 use crate::app::core::error::CustomError;
+use crate::model::language::language_model::Language;
 use crate::model::profile::profile_resolver::auth::AuthGuard;
 
 use super::profile_repository::ProfileRepositoryT;
@@ -60,7 +61,7 @@ impl<'a> ProfileMutation {
     #[graphql(guard = "AuthGuard::new(Permission::Admin)
         .or(AuthGuard::new(Permission::Developer))
         .or(AuthGuard::new(Permission::User))")]
-    async fn subscribe(&'a self, ctx: &'a Context<'_>, to_id: String) -> GraphQLResult<&str> {
+    async fn unsubscribe(&'a self, ctx: &'a Context<'_>, from_id: String) -> GraphQLResult<&str> {
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
         let access_claims = ctx
             .data_opt::<Result<Option<AccessClaims>, CustomError>>()
@@ -71,7 +72,56 @@ impl<'a> ProfileMutation {
             .unwrap();
 
         profile_service
-            .subscribe(to_id, access_claims.sub().to_string())
+            .unsubscribe(access_claims.sub().to_string(), from_id)
+            .await?;
+
+        Ok("OK")
+    }
+
+    #[graphql(guard = "AuthGuard::new(Permission::Admin)
+        .or(AuthGuard::new(Permission::Developer))
+        .or(AuthGuard::new(Permission::User))")]
+    async fn subscribe(&'a self, ctx: &'a Context<'_>, to_id: String) -> GraphQLResult<&str> {
+        let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
+        let access_claims = ctx
+            .data_opt::<Result<Option<AccessClaims>, CustomError>>()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap();
+
+        if access_claims.sub().to_string() != to_id {
+            profile_service
+                .subscribe(to_id, access_claims.sub().to_string())
+                .await?;
+
+            Ok("OK")
+        } else {
+            Err(crate::unprocessable!("id", Some("You can't follow yourself".to_string())).into())
+        }
+    }
+
+    #[graphql(guard = "AuthGuard::new(Permission::Admin)
+        .or(AuthGuard::new(Permission::Developer))
+        .or(AuthGuard::new(Permission::User))")]
+    async fn remove_lang_rel(
+        &'a self,
+        ctx: &'a Context<'_>,
+        rel_type: String,
+        lang: Language,
+    ) -> GraphQLResult<&str> {
+        let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
+        let access_claims = ctx
+            .data_opt::<Result<Option<AccessClaims>, CustomError>>()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap();
+
+        profile_service
+            .remove_language(rel_type, access_claims.sub().to_string(), lang)
             .await?;
 
         Ok("OK")
