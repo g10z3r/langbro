@@ -3,32 +3,32 @@ use async_graphql::{Enum, Object};
 use std::str::FromStr;
 use strum_macros::{Display, EnumString};
 
-use super::language_mutation::StudLangInput;
+use super::language_mutation::StudiedInput;
 
 /// Studied languages
-#[derive(Serialize, Deserialize)]
-pub(crate) struct StudLang {
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Studied {
     pub cefr: CefrKind,
     pub lang: Language,
 }
 
-impl From<StudLangInput> for StudLang {
-    fn from(input: StudLangInput) -> Self {
-        StudLang {
+impl From<StudiedInput> for Studied {
+    fn from(input: StudiedInput) -> Self {
+        Studied {
             cefr: input.cefr,
             lang: input.lang,
         }
     }
 }
 
-impl StudLang {
+impl Studied {
     pub(crate) fn new(cefr: CefrKind, lang: Language) -> Self {
         Self { cefr, lang }
     }
 }
 
 #[Object]
-impl<'a> StudLang {
+impl<'a> Studied {
     async fn cefr(&'a self) -> CefrKind {
         self.cefr
     }

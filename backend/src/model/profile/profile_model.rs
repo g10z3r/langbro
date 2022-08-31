@@ -2,14 +2,13 @@ use anyhow::Result;
 use argon2::Config;
 use async_graphql::{Enum, Object};
 use chrono::Utc;
+use neo4j_cypher::CypQue;
 use rand::Rng;
+use std::fmt::Display;
 use strum_macros::{Display, EnumString};
 use uuid::Uuid;
 
-use crate::{
-    app::api::security::auth::AuthGuard,
-    model::language::language_model::{Language, StudLang},
-};
+use crate::app::api::security::auth::AuthGuard;
 
 use super::profile_mutation::ProfileRegistrationInput;
 
@@ -34,11 +33,12 @@ impl Default for Permission {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, CypQue)]
 pub struct Profile {
     pub(super) id: Uuid,
     pub(super) email: String,
     pub(super) hash: String,
+    #[cypher(skip)]
     pub(super) permission: Permission,
     pub(super) username: String,
     pub(super) first_name: String,
@@ -46,8 +46,6 @@ pub struct Profile {
     pub(super) sex: u8,
     pub(super) age: u8,
     pub(super) description: Option<String>,
-    pub(super) native_languages: Vec<Language>,
-    pub(super) studied_languages: Vec<StudLang>,
     pub(super) created_at: i64,
     pub(super) updated_at: i64,
 }
@@ -65,12 +63,6 @@ impl Profile {
             sex: profile_input.sex,
             age: profile_input.age,
             description: profile_input.description,
-            native_languages: Language::from_string_vec(profile_input.native_languages)?,
-            studied_languages: profile_input
-                .studied_languages
-                .into_iter()
-                .map(|value| value.into())
-                .collect(),
             created_at: Utc::now().timestamp(),
             updated_at: Utc::now().timestamp(),
         };
@@ -149,20 +141,6 @@ impl<'a> Profile {
         .or(AuthGuard::new(Permission::User))")]
     async fn description(&'a self) -> &Option<String> {
         &self.description
-    }
-
-    #[graphql(guard = "AuthGuard::new(Permission::Admin)
-        .or(AuthGuard::new(Permission::Developer))
-        .or(AuthGuard::new(Permission::User))")]
-    async fn native_languages(&'a self) -> &Vec<Language> {
-        &self.native_languages
-    }
-
-    #[graphql(guard = "AuthGuard::new(Permission::Admin)
-    .or(AuthGuard::new(Permission::Developer))
-    .or(AuthGuard::new(Permission::User))")]
-    async fn studied_languages(&'a self) -> &Vec<StudLang> {
-        &self.studied_languages
     }
 
     #[graphql(guard = "AuthGuard::new(Permission::Admin)

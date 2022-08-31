@@ -4,7 +4,12 @@ use validator::Validate;
 
 use crate::app::api::security::auth::{self, AccessClaims, Token};
 use crate::app::core::error::CustomError;
-use crate::model::language::language_model::{CefrKind, Language};
+use crate::model::language::language_model::Studied;
+use crate::model::language::{
+    language_model::{CefrKind, Language},
+    language_mutation::StudiedInput,
+};
+
 use crate::model::profile::profile_resolver::auth::AuthGuard;
 
 use super::profile_mutation::EditProfileInput;
@@ -24,13 +29,17 @@ impl<'a> ProfileMutation {
         &'a self,
         ctx: &'a Context<'_>,
         profile_input: ProfileRegistrationInput,
+        native_langs_input: Vec<Language>,
+        studied_langs_input: Vec<StudiedInput>,
     ) -> GraphQLResult<&str> {
         profile_input.validate()?;
 
         let profile = Arc::new(Profile::new(profile_input)?);
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
 
-        profile_service.create(profile).await?;
+        profile_service
+            .create(profile, native_langs_input, studied_langs_input)
+            .await?;
 
         Ok("OK")
     }
@@ -45,9 +54,7 @@ impl<'a> ProfileMutation {
         login_input.validate()?;
 
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
-        let profile = profile_service
-            .get_by_username(login_input.username)
-            .await?;
+        let profile = profile_service.get_data(login_input.username).await?;
 
         let access_token = Token::encode(auth::AccessClaims::new(
             profile.id.to_string(),
@@ -165,14 +172,34 @@ impl<'a> ProfileQuery {
     #[graphql(guard = "AuthGuard::new(Permission::Admin)
         .or(AuthGuard::new(Permission::Developer))
         .or(AuthGuard::new(Permission::User))")]
-    async fn get_profile_by_id(
+    async fn get_profile_data(
         &'a self,
         ctx: &'a Context<'_>,
-        id: String,
+        find_by: String,
     ) -> GraphQLResult<Profile> {
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
+        Ok(profile_service.get_data(find_by).await?)
+    }
 
-        Ok(profile_service.get_by_id(id).await?)
+    #[graphql(guard = "AuthGuard::new(Permission::Admin)
+        .or(AuthGuard::new(Permission::Developer))
+        .or(AuthGuard::new(Permission::User))")]
+    async fn get_profile_native_langs(
+        &'a self,
+        ctx: &'a Context<'_>,
+        find_by: String,
+    ) -> GraphQLResult<Vec<Language>> {
+        let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
+        Ok(profile_service.get_native_langs(find_by).await?)
+    }
+
+    async fn get_profile_studied_langs(
+        &'a self,
+        ctx: &'a Context<'_>,
+        find_by: String,
+    ) -> GraphQLResult<Vec<Studied>> {
+        let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
+        Ok(profile_service.get_studied_langs(find_by).await?)
     }
 }
 

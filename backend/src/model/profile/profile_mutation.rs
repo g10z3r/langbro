@@ -1,10 +1,7 @@
 use async_graphql::{InputObject, Object};
 use validator::Validate;
 
-use crate::{
-    app::utils::{regex::RE_NAME, validation::validate_query},
-    model::language::language_mutation::StudLangInput,
-};
+use crate::app::utils::{regex::RE_NAME, validation::validate_query};
 
 #[derive(Validate, Serialize, Deserialize, InputObject)]
 pub struct EditProfileInput {
@@ -66,12 +63,6 @@ pub struct ProfileRegistrationInput {
     pub(super) age: u8,
 
     pub(super) description: Option<String>,
-
-    #[validate(length(min = 1, max = 3, message = "Lenght is invalid"))]
-    pub(super) native_languages: Vec<String>,
-
-    #[validate(length(min = 1, max = 5, message = "Lenght is invalid"))]
-    pub(super) studied_languages: Vec<StudLangInput>,
 }
 
 #[derive(Validate, Serialize, Deserialize, InputObject)]

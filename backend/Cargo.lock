@@ -891,6 +891,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cypher_derive"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5e14afc8c7cc0d41b8e4fee370f420add47a4d358465981e3206acbb0fcd336"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2",
+ "proc_macro_roids",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "darling"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1540,6 +1553,7 @@ dependencies = [
  "lingua",
  "log",
  "mongodb",
+ "neo4j_cypher",
  "neo4rs",
  "pretty_env_logger",
  "rand",
@@ -2545,6 +2559,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "neo4j_cypher"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a27684055c8ad3638bea88ba7434fdf31a7510999a94c84c44ba023f55df4c5"
+dependencies = [
+ "cypher_derive",
+]
+
+[[package]]
 name = "neo4rs"
 version = "0.5.9"
 source = "git+https://github.com/I0HuKc/neo4rs?branch=master#e045437081eedac45c5240bbe3b84dc1f51e88c8"
@@ -2858,6 +2881,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd96a1e8ed2596c337f8eae5f24924ec83f5ad5ab21ea8e455d3566c69fbcaf7"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "proc_macro_roids"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06675fa2c577f52bcf77fbb511123927547d154faa08097cc012c66ec3c9611a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
