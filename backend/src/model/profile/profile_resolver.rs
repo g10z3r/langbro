@@ -6,17 +6,18 @@ use crate::app::api::security::auth::{self, AccessClaims, Token};
 use crate::app::core::error::CustomError;
 use crate::model::language::language_model::Studied;
 use crate::model::language::{
+    language_error::{ERR_LANG__DUBLICATED, ERR_LANG__UNIQUE},
     language_model::{CefrKind, Language},
     language_mutation::StudiedInput,
 };
-
-use crate::model::profile::profile_resolver::auth::AuthGuard;
-
-use super::profile_mutation::EditProfileInput;
-use super::profile_repository::ProfileRepositoryT;
-use super::{
+use crate::model::profile::{
+    profile_error::ERR_PROF__SELF_SUBSCRIBE,
     profile_model::{Permission, Profile},
-    profile_mutation::{ProfileLoginInput, ProfileLoginOutput, ProfileRegistrationInput},
+    profile_mutation::{
+        EditProfileInput, ProfileLoginInput, ProfileLoginOutput, ProfileRegistrationInput,
+    },
+    profile_repository::ProfileRepositoryT,
+    profile_resolver::auth::AuthGuard,
 };
 
 #[derive(Default)]
@@ -24,15 +25,15 @@ pub struct ProfileMutation;
 
 #[Object]
 impl<'a> ProfileMutation {
-    /// Метод для регистрации.
+    /// Метод регистрации.
     async fn registration(
         &'a self,
         ctx: &'a Context<'_>,
         profile_input: ProfileRegistrationInput,
-        native_langs_input: Vec<Language>,
-        studied_langs_input: Vec<StudiedInput>,
+        #[graphql(validator(min_items = 1, max_items = 2))] native_langs_input: Vec<Language>,
+        #[graphql(validator(min_items = 1, max_items = 4))] studied_langs_input: Vec<StudiedInput>,
     ) -> GraphQLResult<&str> {
-        profile_input.validate()?;
+        reg_validation(&profile_input, &native_langs_input, &studied_langs_input)?;
 
         let profile = Arc::new(Profile::new(profile_input)?);
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
@@ -44,7 +45,7 @@ impl<'a> ProfileMutation {
         Ok("OK")
     }
 
-    /// Метод для авторизации.
+    /// Метод авторизации.
     /// В ответ клиент должен получить набор токенов.
     async fn login(
         &'a self,
@@ -69,7 +70,7 @@ impl<'a> ProfileMutation {
         Ok(ProfileLoginOutput::create(access_token, refresh_token))
     }
 
-    /// Метод для удаления связи :SUBSCRIBE между двумя узлами типа :Profile
+    /// Метод удаления связи :SUBSCRIBE между двумя узлами типа :Profile
     #[graphql(guard = "AuthGuard::new(Permission::Admin)
         .or(AuthGuard::new(Permission::Developer))
         .or(AuthGuard::new(Permission::User))")]
@@ -84,7 +85,7 @@ impl<'a> ProfileMutation {
         Ok("OK")
     }
 
-    /// Метод для установки связи :SUBSCRIBE между двумя узлами типа :Profile
+    /// Метод установки связи :SUBSCRIBE между двумя узлами типа :Profile
     #[graphql(guard = "AuthGuard::new(Permission::Admin)
         .or(AuthGuard::new(Permission::Developer))
         .or(AuthGuard::new(Permission::User))")]
@@ -99,11 +100,11 @@ impl<'a> ProfileMutation {
 
             Ok("OK")
         } else {
-            Err(crate::unprocessable!("id", Some("You can't follow yourself".to_string())).into())
+            Err(crate::unprocessable!("id", Some(ERR_PROF__SELF_SUBSCRIBE.to_string())).into())
         }
     }
 
-    /// Метод для удаления связи между узлом :Profile и :Language.
+    /// Метод удаления связи между узлом :Profile и :Language.
     ///
     /// В качестве параметра должно передаваться тип связи между
     /// двумя указанными узлами и параметр `name` для узла :Language.
@@ -201,6 +202,50 @@ impl<'a> ProfileQuery {
         let profile_service = ctx.data::<Arc<dyn ProfileRepositoryT>>()?;
         Ok(profile_service.get_studied_langs(find_by).await?)
     }
+}
+
+fn reg_validation<'a>(
+    profile_input: &ProfileRegistrationInput,
+    native_langs: &Vec<Language>,
+    studied_langs: &Vec<StudiedInput>,
+) -> Result<(), CustomError<'a>> {
+    profile_input.validate()?;
+
+    // Проверка уникальности
+    if (1..native_langs.len()).any(|i| native_langs[i..].contains(&native_langs[i - 1])) {
+        return Err(crate::unprocessable!(
+            "language",
+            Some(ERR_LANG__UNIQUE.to_string())
+        ));
+    }
+
+    let studied_langs_slim = studied_langs
+        .iter()
+        .map(|item| item.lang)
+        .collect::<Vec<Language>>();
+
+    // Проверка уникальности
+    if (1..studied_langs_slim.len())
+        .any(|i| studied_langs_slim[i..].contains(&studied_langs_slim[i - 1]))
+    {
+        return Err(crate::unprocessable!(
+            "language",
+            Some(ERR_LANG__UNIQUE.to_string())
+        ));
+    }
+
+    // Проверяю что нет дублирования языков в массиве Родных языков
+    // и в списке изучаемых.
+    for s in studied_langs_slim {
+        if native_langs.contains(&s) {
+            return Err(crate::unprocessable!(
+                "language",
+                Some(ERR_LANG__DUBLICATED.to_string())
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 /// Получение полезной нагрузки Access токена

@@ -164,7 +164,7 @@ impl ProfileRepositoryT for ProfileRepository {
         let query = neo4rs::query(
             "
                 MATCH (e:Profile) WHERE e.id = $form
-                MATCH (d:Profile) WHERE d.id = $to
+                MATCH (d:Profile) WHERE d.id = $to OR d.username = $to OR d.email = $to
 
                 CREATE (e)-[:SUBSCRIBE {timestamp: $timestamp}]->(d)
             ",

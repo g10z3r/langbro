@@ -60,7 +60,9 @@ pub enum CefrKind {
     C2,
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq, Enum, Display, EnumString)]
+#[derive(
+    Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq, Enum, Display, EnumString,
+)]
 pub enum Language {
     // A
     #[graphql(name = "Afrikaans")]
